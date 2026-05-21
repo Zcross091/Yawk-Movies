@@ -5,90 +5,53 @@ import sqlite3
 DB_NAME = "streaming_platform.db"
 
 def init_database():
-    """Initializes the database schema for content, users, and interaction metrics."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    # Core media storage table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS media (
-            id TEXT PRIMARY KEY,
-            title TEXT,
-            type TEXT, -- 'movie' or 'series'
-            genre TEXT,
-            banner_url TEXT,
-            stream_source TEXT,
-            views INTEGER DEFAULT 0
+            id TEXT PRIMARY KEY, title TEXT, type TEXT, genre TEXT, banner_url TEXT, stream_source TEXT, views INTEGER DEFAULT 0
         )
     ''')
-    
-    # Simple user authentication table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT
-        )
-    ''')
-    
-    # Interactions tracking table for cross-device state
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_interactions (
-            user_id INTEGER,
-            media_id TEXT,
-            liked INTEGER DEFAULT 0,
-            watch_position TEXT, -- Timestamp or status
-            PRIMARY KEY (user_id, media_id)
-        )
-    ''')
-    
+    cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS user_interactions (user_id INTEGER, media_id TEXT, liked INTEGER DEFAULT 0, watch_position TEXT, PRIMARY KEY (user_id, media_id))')
     conn.commit()
     conn.close()
 
-def ingest_xml_feed(xml_path):
-    """Parses structural XML feeds and upserts data safely into the database layer."""
+def ingest_library(xml_path):
     if not os.path.exists(xml_path):
-        print(f"Error: Target file '{xml_path}' not found.")
+        print(f"Error: Target '{xml_path}' data layer descriptor missing.")
         return
 
-    print(f"Starting ingestion process for: {xml_path}")
+    init_database()
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-
+    
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
-        
         count = 0
-        # Iterate over both movie and series tags safely
+        
         for item in root.findall('.//*'):
-            if item.tag in ['movie', 'series']:
+            if item.tag in ['movie', 'series', 'show']:
                 media_id = item.get('id')
-                title = item.find('title').text if item.find('title') is not None else "Unknown Title"
+                title = item.find('title').text if item.find('title') is not None else "Untitled"
                 genre = item.find('genre').text if item.find('genre') is not None else "General"
-                banner = item.find('banner_url').text if item.find('banner_url') is not None else "https://via.placeholder.com/300"
+                banner = item.find('banner_url').text if item.find('banner_url') is not None else "https://via.placeholder.com/400"
                 source = item.find('stream_source').text if item.find('stream_source') is not None else ""
                 
-                # Insert or update if content matching id already exists
                 cursor.execute('''
                     INSERT INTO media (id, title, type, genre, banner_url, stream_source)
                     VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        title=excluded.title,
-                        genre=excluded.genre,
-                        banner_url=excluded.banner_url,
-                        stream_source=excluded.stream_source
+                    ON CONFLICT(id) DO UPDATE SET stream_source=excluded.stream_source, title=excluded.title
                 ''', (media_id, title, item.tag, genre, banner, source))
                 count += 1
                 
         conn.commit()
-        print(f"Successfully processed and synced {count} media entities.")
-    except ET.ParseError:
-        print("Fatal Error: Failed to parse XML. Verify your tags are closed properly.")
+        print(f"Database successfully updated. Synchronized {count} Google Drive entries.")
+    except Exception as e:
+        print(f"Parsing engine failed: {e}")
     finally:
         conn.close()
 
 if __name__ == "__main__":
-    init_database()
-    # Replace with the path to your main xml data repository descriptor
-    ingest_xml_feed("library.xml")
+    ingest_library("library.xml")
