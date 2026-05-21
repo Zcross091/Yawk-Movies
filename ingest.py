@@ -6,11 +6,10 @@ from googleapiclient.discovery import build
 
 DB_NAME = "streaming_platform.db"
 
-# 🔴 CONFIGURATION: Add as many Google Drive Folder IDs as you want here separated by commas
-FOLDER_IDS = [
-    "1Qv15HXr0h0qbX9DDu81j6MESfojHolYv",
-    "1i9Fu-8tZmAgnmiKxxHLbK8N2zv5OKsft",
-    "1y_JIB1lZj-NZ9I-Te8uvge-UrCd_Bvlu"
+# 🔴 CONFIGURATION: Paste your 3 Google Drive Folder IDs here separated by commas
+FOLDER_IDS = [ "1Qv15HXr0h0qbX9DDu81j6MESfojHolYv",
+ "1i9Fu-8tZmAgnmiKxxHLbK8N2zv5OKsft",
+  "1y_JIB1lZj-NZ9I-Te8uvge-UrCd_Bvlu"
 ]
 
 def init_database():
@@ -34,7 +33,7 @@ def clean_title_from_filename(filename):
 
 def auto_scan_all_google_drives():
     if not os.path.exists("credentials.json"):
-        print("Error: 'credentials.json' is missing from your root folder!")
+        print("Error: 'credentials.json' is missing! Rename your MYTV5X55INCH file to credentials.json in the sidebar.")
         return
 
     init_database()
@@ -48,7 +47,6 @@ def auto_scan_all_google_drives():
     total_count = 0
     print("Connecting to Google Drive API...")
 
-    # Loop through each folder listed in your configuration array above
     for folder_id in FOLDER_IDS:
         print(f"Scanning Folder: {folder_id}...")
         try:
@@ -62,7 +60,6 @@ def auto_scan_all_google_drives():
                 title = clean_title_from_filename(file_name)
                 stream_url = f"https://drive.google.com/file/d/{file_id}/preview"
                 
-                # Insert the file. ON CONFLICT makes sure if the same movie exists on multiple drives, it doesn't crash
                 cursor.execute('''
                     INSERT INTO media (id, title, type, genre, banner_url, stream_source)
                     VALUES (?, ?, ?, ?, ?, ?)
@@ -70,7 +67,7 @@ def auto_scan_all_google_drives():
                 ''', (file_id, title, 'movie', 'Cloud Media', 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400', stream_url))
                 total_count += 1
         except Exception as e:
-            print(f"Error reading folder {folder_id}: {e}. Make sure you shared it with the service account email!")
+            print(f"Error reading folder {folder_id}: {e}")
 
     conn.commit()
     conn.close()

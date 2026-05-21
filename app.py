@@ -103,7 +103,7 @@ BASE_TEMPLATE = """
     </div>
 
     <div class="shelf">
-        <div class="shelf-title">All Anime & Series</div>
+        <div class="shelf-title">All Movies & Shows</div>
         <div class="grid-container">
             {% for item in library %}
             <div class="media-card" onclick="playMedia('{{ item.id }}', '{{ item.stream_source }}')">
@@ -127,13 +127,10 @@ BASE_TEMPLATE = """
 
     <script>
         let currentActiveMediaId = null;
-
         function openModal() { document.getElementById('authModal').style.display = 'flex'; }
         
         function playMedia(id, src) {
             currentActiveMediaId = id;
-            
-            // Record analytics view state history update
             fetch(`/view/${id}`, { method: 'POST' });
 
             const viewport = document.getElementById('viewport');
@@ -143,7 +140,6 @@ BASE_TEMPLATE = """
 
             mount.innerHTML = `<iframe src="${src}" allowfullscreen allow="autoplay; encrypted-media"></iframe>`;
             
-            // Wire up database like mechanism action
             document.getElementById('like-btn').onclick = function() {
                 fetch(`/like/${currentActiveMediaId}`, { method: 'POST' })
                     .then(res => res.json())
@@ -167,16 +163,13 @@ def home():
     db = get_db()
     trending = db.execute("SELECT * FROM media ORDER BY views DESC LIMIT 12").fetchall()
     library = db.execute("SELECT * FROM media ORDER BY title ASC").fetchall()
-    
     history = []
     if session.get('user_id'):
-        # Query matching table entries to build a "Continue Watching" shelf across devices
         history = db.execute('''
             SELECT m.* FROM media m 
             JOIN user_interactions i ON m.id = i.media_id 
             WHERE i.user_id = ? ORDER BY m.views DESC LIMIT 6
         ''', (session['user_id'],)).fetchall()
-        
     db.close()
     return render_template_string(BASE_TEMPLATE, trending=trending, library=library, history=history)
 
@@ -209,7 +202,6 @@ def log_view(media_id):
     db = get_db()
     db.execute("UPDATE media SET views = views + 1 WHERE id = ?", (media_id,))
     if session.get('user_id'):
-        # Persist the relationship to display on user profile on next authentication boot
         db.execute('''
             INSERT INTO user_interactions (user_id, media_id, watch_position) 
             VALUES (?, ?, 'watching') 
@@ -223,7 +215,6 @@ def log_view(media_id):
 def log_like(media_id):
     if not session.get('user_id'):
         return jsonify({"message": "Please log in to save favorites!"})
-    
     db = get_db()
     db.execute('''
         INSERT INTO user_interactions (user_id, media_id, liked) 
