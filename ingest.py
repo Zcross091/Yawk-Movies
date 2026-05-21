@@ -9,7 +9,7 @@ DB_NAME = "streaming_platform.db"
 # 🔴 CONFIGURATION: Add as many Google Drive Folder IDs as you want here separated by commas
 FOLDER_IDS = [
     "YOUR_FIRST_DRIVE_FOLDER_ID",
-    "YOUR_SECOND_DRIVE_FOLDER_ID",
+    "1i9Fu-8tZmAgnmiKxxHLbK8N2zv5OKsft",
     "YOUR_THIRD_DRIVE_FOLDER_ID"
 ]
 
