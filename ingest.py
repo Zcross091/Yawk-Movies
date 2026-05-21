@@ -1,8 +1,17 @@
 import os
-import xml.etree.ElementTree as ET
+import re
 import sqlite3
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 DB_NAME = "streaming_platform.db"
+
+# 🔴 CONFIGURATION: Add as many Google Drive Folder IDs as you want here separated by commas
+FOLDER_IDS = [
+    "YOUR_FIRST_DRIVE_FOLDER_ID",
+    "YOUR_SECOND_DRIVE_FOLDER_ID",
+    "YOUR_THIRD_DRIVE_FOLDER_ID"
+]
 
 def init_database():
     conn = sqlite3.connect(DB_NAME)
@@ -17,41 +26,55 @@ def init_database():
     conn.commit()
     conn.close()
 
-def ingest_library(xml_path):
-    if not os.path.exists(xml_path):
-        print(f"Error: Target '{xml_path}' data layer descriptor missing.")
+def clean_title_from_filename(filename):
+    name, _ = os.path.splitext(filename)
+    clean_name = re.sub(r'[\.\-_]', ' ', name)
+    clean_name = re.sub(r'(1080p|720p|4k|bluray|x264|h264|webrip|mp4|mkv)', '', clean_name, flags=re.IGNORECASE)
+    return clean_name.strip().title()
+
+def auto_scan_all_google_drives():
+    if not os.path.exists("credentials.json"):
+        print("Error: 'credentials.json' is missing from your root folder!")
         return
 
     init_database()
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    try:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-        count = 0
-        
-        for item in root.findall('.//*'):
-            if item.tag in ['movie', 'series', 'show']:
-                media_id = item.get('id')
-                title = item.find('title').text if item.find('title') is not None else "Untitled"
-                genre = item.find('genre').text if item.find('genre') is not None else "General"
-                banner = item.find('banner_url').text if item.find('banner_url') is not None else "https://via.placeholder.com/400"
-                source = item.find('stream_source').text if item.find('stream_source') is not None else ""
+
+    SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+    creds = service_account.Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+    service = build('drive', 'v3', credentials=creds)
+
+    total_count = 0
+    print("Connecting to Google Drive API...")
+
+    # Loop through each folder listed in your configuration array above
+    for folder_id in FOLDER_IDS:
+        print(f"Scanning Folder: {folder_id}...")
+        try:
+            query = f"'{folder_id}' in parents and mimeType contains 'video/' and trashed = false"
+            results = service.files().list(q=query, fields="files(id, name)").execute()
+            files = results.get('files', [])
+
+            for f in files:
+                file_id = f['id']
+                file_name = f['name']
+                title = clean_title_from_filename(file_name)
+                stream_url = f"https://drive.google.com/file/d/{file_id}/preview"
                 
+                # Insert the file. ON CONFLICT makes sure if the same movie exists on multiple drives, it doesn't crash
                 cursor.execute('''
                     INSERT INTO media (id, title, type, genre, banner_url, stream_source)
                     VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET stream_source=excluded.stream_source, title=excluded.title
-                ''', (media_id, title, item.tag, genre, banner, source))
-                count += 1
-                
-        conn.commit()
-        print(f"Database successfully updated. Synchronized {count} Google Drive entries.")
-    except Exception as e:
-        print(f"Parsing engine failed: {e}")
-    finally:
-        conn.close()
+                    ON CONFLICT(id) DO UPDATE SET title=excluded.title, stream_source=excluded.stream_source
+                ''', (file_id, title, 'movie', 'Cloud Media', 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400', stream_url))
+                total_count += 1
+        except Exception as e:
+            print(f"Error reading folder {folder_id}: {e}. Make sure you shared it with the service account email!")
+
+    conn.commit()
+    conn.close()
+    print(f"\nSuccess! Automatically aggregated {total_count} movies across all connected Google Drives.")
 
 if __name__ == "__main__":
-    ingest_library("library.xml")
+    auto_scan_all_google_drives()
