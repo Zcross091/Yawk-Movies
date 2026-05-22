@@ -30,8 +30,7 @@ A self-hosted **Netflix-style streaming platform** that plays videos directly fr
 
 ## 📸 Screenshots
 
-![Home Page](https://via.placeholder.com/800x400?text=StreamRed+Home+Page)
-![Player](https://via.placeholder.com/800x400?text=Multi+Player+Interface)
+![Home Page](https://gifyu.com/image/bIShO)
 
 ## ⚙️ Setup Instructions
 
