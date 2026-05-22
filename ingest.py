@@ -4,7 +4,6 @@ import sqlite3
 import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 DB_NAME = "streaming_platform.db"
 
@@ -37,20 +36,21 @@ def init_database():
 def clean_title_from_filename(filename):
     name, _ = os.path.splitext(filename)
     clean_name = re.sub(r'[\.\-_]', ' ', name)
-    clean_name = re.sub(r'(1080p|720p|4k|bluray|x264|h264|webrip|web-dl)', '', clean_name, flags=re.IGNORECASE)
+    clean_name = re.sub(r'(1080p|720p|4k|bluray|x264|h264|webrip|web-dl|1080|720)', '', clean_name, flags=re.IGNORECASE)
     return clean_name.strip().title()
 
 def auto_scan_all_google_drives():
     cred_json = os.getenv("GOOGLE_CREDENTIALS")
     if not cred_json:
-        print("❌ GOOGLE_CREDENTIALS environment variable not found!")
-        print("Please set it in Codespaces Secrets.")
+        print("❌ GOOGLE_CREDENTIALS not found!")
         return
 
     try:
+        if cred_json.startswith('"') and cred_json.endswith('"'):
+            cred_json = cred_json[1:-1]
         creds_dict = json.loads(cred_json)
-    except json.JSONDecodeError:
-        print("❌ Invalid JSON in GOOGLE_CREDENTIALS")
+    except:
+        print("❌ Invalid GOOGLE_CREDENTIALS JSON")
         return
 
     init_database()
@@ -68,29 +68,27 @@ def auto_scan_all_google_drives():
 
         for folder_id in FOLDER_IDS:
             try:
-                query = f"""
-                    '{folder_id}' in parents and trashed = false and (
-                        mimeType contains 'video/' or 
-                        name contains '.mp4' or name contains '.mkv' or 
-                        name contains '.mov' or name contains '.m4v' or 
-                        name contains '.avi' or name contains '.webm'
-                    )
-                """
-                
+                query = f"'{folder_id}' in parents and trashed = false and (mimeType contains 'video/' or name contains '.mp4' or name contains '.mkv' or name contains '.mov' or name contains '.m4v' or name contains '.avi' or name contains '.webm')"
+
                 results = service.files().list(q=query, fields="files(id, name, mimeType)", pageSize=1000).execute()
                 files = results.get('files', [])
 
                 for f in files:
                     file_id = f['id']
                     title = clean_title_from_filename(f['name'])
-                    stream_url = f"https://drive.google.com/file/d/{file_id}/preview"
+                    
+                    # ✅ Better streaming link (more reliable than /preview)
+                    stream_url = f"https://drive.google.com/uc?id={file_id}&export=download"
                     
                     cursor.execute('''
                         INSERT INTO media (id, title, type, genre, banner_url, stream_source)
                         VALUES (?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(id) DO UPDATE SET title=excluded.title, stream_source=excluded.stream_source
+                        ON CONFLICT(id) DO UPDATE SET 
+                            title=excluded.title, 
+                            stream_source=excluded.stream_source
                     ''', (file_id, title, 'movie', 'Cloud Media', 
-                          'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400', stream_url))
+                          'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=400', 
+                          stream_url))
                     
                     found_ids.add(file_id)
                     total_count += 1
