@@ -77,7 +77,7 @@ def auto_scan_all_google_drives():
                     file_id = f['id']
                     title = clean_title_from_filename(f['name'])
                     
-                    # ✅ Better streaming link (more reliable than /preview)
+                    # Best working link for MovieBox files
                     stream_url = f"https://drive.google.com/uc?id={file_id}&export=download"
                     
                     cursor.execute('''
