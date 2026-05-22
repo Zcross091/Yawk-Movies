@@ -30,7 +30,7 @@ A self-hosted **Netflix-style streaming platform** that plays videos directly fr
 
 ## 📸 Screenshots
 
-![Home Page](https://gifyu.com/image/bIShO)
+![Home Page](https://profileimages.torn.com/377X283_0f6f85c2-5bf8-4051-8b3c-b8f0a4d6c22d-3864390.png?v=29192697673)
 
 ## ⚙️ Setup Instructions
 
